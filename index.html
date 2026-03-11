@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<!-- キャッシュ禁止：常に最新ファイルを読み込む -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- テーマを body 描画前に適用してフラッシュを防ぐ -->
+<script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('hm-theme') || 'auto'); })();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Heatmap</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%230d1117'/><rect x='2'  y='2'  width='9' height='9' rx='1.5' fill='%230E6B2E'/><rect x='13' y='2'  width='9' height='9' rx='1.5' fill='%233fb950'/><rect x='24' y='2'  width='6' height='9' rx='1.5' fill='%238B1A1A'/><rect x='2'  y='13' width='9' height='9' rx='1.5' fill='%238B1A1A'/><rect x='13' y='13' width='9' height='9' rx='1.5' fill='%230E6B2E'/><rect x='24' y='13' width='6' height='9' rx='1.5' fill='%233fb950'/><rect x='2'  y='24' width='9' height='6' rx='1.5' fill='%233fb950'/><rect x='13' y='24' width='9' height='6' rx='1.5' fill='%238B1A1A'/><rect x='24' y='24' width='6' height='6' rx='1.5' fill='%230E6B2E'/></svg>">
+
+<!-- スタイルシート -->
+<link rel="stylesheet" href="portfolio.css?v=20260310k">
+<!-- 銘柄リスト列表示制御（JS が動的に書き込む） -->
+<style id="sl-col-style"></style>
+<!-- ★ モバイルレイアウト CSS フォールバック
+     portfolio.js の旧版が読まれても基本レイアウトを保証する
+     !important で HTML の inline style="flex-wrap:wrap" を上書き -->
+<style>
+@media (max-width: 600px) {
+  .controls { flex-wrap: nowrap !important; overflow-x: auto !important; }
+  #refresh-ctrl-group { display: none !important; }
+  .controls .divider   { display: none !important; }
+}
+</style>
+
+<!-- D3.js v7（CDN フォールバック x3） -->
+<script src="https://cdn.bootcdn.net/ajax/libs/d3/7.8.5/d3.min.js" crossorigin="anonymous"></script>
+<script>if(!window.d3){document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" crossorigin="anonymous"><\/scr'+'ipt>');}</script>
+<script>if(!window.d3){document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js" crossorigin="anonymous"><\/scr'+'ipt>');}</script>
+
+</head>
+<body>
+
+<div id="d3-load-error" style="display:none">
+  <h2>⚠️ グラフライブラリの読み込みに失敗</h2>
+  <p>D3.js の読み込みに失敗しました。<br>インターネット接続を確認するか、<strong>Safari ブラウザで直接開いてください</strong>。</p>
+  <p>Files アプリで開いている場合は、<br>共有ボタン → <code>「Safari で開く」</code> を選択してください。</p>
+</div>
+
+<div class="sticky-top">
+<div class="header">
+  <div>
+    <div class="title">Heatmap</div>
+  </div>
+  <div class="controls">
+    <!-- 更新頻度スイッチ -->
+    <div class="ctrl-group" id="refresh-ctrl-group">
+      <span class="ctrl-label">更新頻度</span>
+      <div class="refresh-switch" id="refresh-switch">
+        <button class="refresh-btn active" data-val="0"     onclick="handleRefreshSelect('0')">OFF</button>
+        <button class="refresh-btn"        data-val="60"    onclick="handleRefreshSelect('60')">1分</button>
+        <button class="refresh-btn"        data-val="300"   onclick="handleRefreshSelect('300')">5分</button>
+        <button class="refresh-btn"        data-val="3600"  onclick="handleRefreshSelect('3600')">60分</button>
+        <button class="refresh-btn"        data-val="now"   onclick="handleRefreshSelect('now')">ライブ</button>
+      </div>
+    </div>
+    <span class="countdown" id="countdown"></span>
+    <div class="divider"></div>
+    <button class="theme-btn" id="theme-btn" onclick="cycleTheme()" title="ライト/ダーク/自動">☀</button>
+    <!-- CSVインポート -->
+    <input type="file" id="csv-import-input" accept=".csv" multiple style="display:none" onchange="handleCsvImport(event)">
+    <button class="csv-btn" onclick="document.getElementById('csv-import-input').click()" title="マネックス証券CSVを読み込む（国内株・米国株・投資信託）">CSV</button>
+  </div>
+</div>
+
+<div class="stats-outer">
+  <button class="eye-btn" id="stats-eye" onclick="toggleStats()" title="統計の表示／非表示">
+    <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M9 1C5 1 1.5 4 1 7c.5 3 3.5 6 8 6s7.5-3 8-6c-.5-3-4-6-8-6z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      <circle cx="9" cy="7" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      <line id="eye-slash" x1="2" y1="2" x2="16" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none"/>
+    </svg>
+  </button>
+  <div class="stats" id="stats"></div>
+</div>
+  <!-- タブバー -->
+  <div id="tab-bar" class="tab-bar" role="tablist">
+    <button class="tab-btn active" data-tab="heatmap" role="tab"
+            onclick="switchTab('heatmap')">ヒートマップ</button>
+    <button class="tab-btn" data-tab="list" role="tab"
+            onclick="switchTab('list')">銘柄リスト</button>
+  </div>
+</div><!-- /sticky-top -->
+
+<!-- ヒートマップパネル（タブ1） -->
+<section id="panel-heatmap" class="tab-panel">
+
+<!-- シミュレーションバー -->
+<div class="sim-bar">
+  <div class="ctrl-group">
+    <span class="ctrl-label">シミュレーション</span>
+    <div class="period-switch" id="period-switch">
+      <button class="period-btn active" data-period="1d"  onclick="setChangePeriod('1d')">1d</button>
+      <button class="period-btn"        data-period="1w"  onclick="setChangePeriod('1w')">1w</button>
+      <button class="period-btn"        data-period="1m"  onclick="setChangePeriod('1m')">1m</button>
+      <button class="period-btn"        data-period="3m"  onclick="setChangePeriod('3m')">3m</button>
+      <button class="period-btn"        data-period="6m"  onclick="setChangePeriod('6m')">6m</button>
+      <button class="period-btn"        data-period="9m"  onclick="setChangePeriod('9m')">9m</button>
+      <button class="period-btn"        data-period="1y"  onclick="setChangePeriod('1y')">1y</button>
+      <button class="period-btn"        data-period="3y"  onclick="setChangePeriod('3y')">3y</button>
+      <button class="period-btn"        data-period="5y"  onclick="setChangePeriod('5y')">5y</button>
+      <button class="period-btn"        data-period="10y" onclick="setChangePeriod('10y')">10y</button>
+    </div>
+  </div>
+  <button class="pnl-btn" id="btn-pnl" onclick="setColorModePnl()">含み損益率</button>
+</div>
+
+<!-- ヒートマップ -->
+<div id="heatmap-wrap">
+  <svg id="heatmap"></svg>
+</div>
+
+<!-- 下落▼〜▲上昇 凡例 -->
+<div class="footer">
+  <div class="legend">
+    <span>▼ 下落</span>
+    <div class="legend-bar"></div>
+    <span>上昇 ▲</span>
+  </div>
+  <div class="status-line" id="status-line">
+    <span class="dot yellow" id="status-dot"></span>
+    <span id="status-text">CSVデータを表示中</span>
+  </div>
+</div>
+</section><!-- /panel-heatmap -->
+
+<!-- 銘柄リストパネル（タブ2） -->
+<section id="panel-list" class="tab-panel">
+<div class="sl-controls">
+  <button class="sl-eye-btn" id="sl-eye-btn" onclick="slToggleDetail()" title="詳細列の表示／非表示">
+    <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M9 1C5 1 1.5 4 1 7c.5 3 3.5 6 8 6s7.5-3 8-6c-.5-3-4-6-8-6z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      <circle cx="9" cy="7" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      <line id="sl-eye-slash" x1="2" y1="2" x2="16" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none"/>
+    </svg>
+  </button>
+</div>
+<div id="stock-list-wrap"></div>
+</section><!-- /panel-list -->
+
+<div class="tooltip" id="tooltip"></div>
+
+<!-- ── Chart Modal ── -->
+<div class="modal-overlay" id="modal-overlay" style="display:none" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">チャート</div>
+      <span class="modal-close" onclick="closeModal()">✕</span>
+    </div>
+    <div class="range-btns" id="range-btns">
+      <button class="range-btn"        data-range="1d"  onclick="setRange('1d')">1d</button>
+      <button class="range-btn"        data-range="1w"  onclick="setRange('1w')">1w</button>
+      <button class="range-btn"        data-range="1m"  onclick="setRange('1m')">1m</button>
+      <button class="range-btn active" data-range="3m"  onclick="setRange('3m')">3m</button>
+      <button class="range-btn"        data-range="6m"  onclick="setRange('6m')">6m</button>
+      <button class="range-btn"        data-range="9m"  onclick="setRange('9m')">9m</button>
+      <button class="range-btn"        data-range="1y"  onclick="setRange('1y')">1y</button>
+      <button class="range-btn"        data-range="3y"  onclick="setRange('3y')">3y</button>
+      <button class="range-btn"        data-range="5y"  onclick="setRange('5y')">5y</button>
+      <button class="range-btn"        data-range="10y" onclick="setRange('10y')">10y</button>
+    </div>
+    <div id="chart-message" class="chart-loading">読み込み中...</div>
+    <svg id="chart-svg"></svg>
+    <div class="chart-stats" id="chart-stats"></div>
+  </div>
+</div>
+
+
+
+<!-- ★ 保有データ（銘柄の追加・変更はこのファイルのみ編集すれば OK） -->
+<script src="positions.js?v=20260310k"></script>
+<!-- アプリロジック（分割ファイル） -->
+<script src="state.js?v=20260310k"></script>
+<script src="utils.js?v=20260310k"></script>
+<script src="data.js?v=20260310k"></script>
+<script src="heatmap.js?v=20260310k"></script>
+<script src="chart.js?v=20260310k"></script>
+<script src="stock-list.js?v=20260310k"></script>
+<script src="app.js?v=20260310k"></script>
+
+<!-- フォールバック JS：旧版 portfolio.js でもヒートマップが描画されるよう保証 -->
+<script>
+(function () {
+  var tries = 0;
+  var MAX = 30;
+
+  function getW() {
+    var wrap = document.getElementById('heatmap-wrap');
+    if (!wrap) return 0;
+    return wrap.clientWidth || wrap.getBoundingClientRect().width || 0;
+  }
+
+  function retryHeatmap() {
+    tries++;
+    var svg = document.getElementById('heatmap');
+    if (!svg) { if (tries < MAX) setTimeout(retryHeatmap, 100); return; }
+    if (svg.children.length > 0) return; // 描画済み
+    var W = getW();
+    if (W > 0 && typeof renderHeatmap === 'function') {
+      renderHeatmap();
+      return;
+    }
+    if (tries < MAX) { setTimeout(retryHeatmap, 100); return; }
+    // 最終手段：W=0 のまま強制実行
+    if (typeof renderHeatmap === 'function') renderHeatmap();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(retryHeatmap, 50);
+      setTimeout(retryHeatmap, 500);
+    });
+  } else {
+    setTimeout(retryHeatmap, 0);
+    setTimeout(retryHeatmap, 300);
+  }
+
+  // 画面回転・リサイズ時にも再試行
+  window.addEventListener('resize', function () {
+    var svg = document.getElementById('heatmap');
+    if (svg && svg.children.length === 0) { tries = 0; retryHeatmap(); }
+  });
+}());
+</script>
+
+</body>
+</html>
