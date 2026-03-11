@@ -1,29 +1,15 @@
 // ══════════════════════════════════════════════════════════════
 // stock-list.js  ―  銘柄一覧テーブル
 //
-// 依存: state.js (state, SL_DETAIL_COLS), utils.js (getColor,
-//        getCellTextColor, getHistoricalChangePct, fmtJPYInt, fmtPctInt,
-//        fmtPrice, fmtShares, sgn), positions.js (positions, PERIOD_MAP)
+// 依存: state.js (state, SL_DETAIL_COLS), utils.js (makeTh, makePctCell,
+//        getColor, getCellTextColor, getHistoricalChangePct,
+//        fmtJPYInt, fmtPctInt, fmtPrice, fmtShares, sgn),
+//       positions.js (positions, PERIOD_COLS, PERIOD_IDS, PERIOD_MAP)
 // ══════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════
 // STOCK LIST
 // ══════════════════════════════════════════════
-
-/** 騰落率列の定義（全期間・順序固定） */
-const PERIOD_COLS = [
-  { id: '1d',  label: '1d'  },
-  { id: '1w',  label: '1w'  },
-  { id: '1m',  label: '1m'  },
-  { id: '3m',  label: '3m'  },
-  { id: '6m',  label: '6m'  },
-  { id: '9m',  label: '9m'  },
-  { id: '1y',  label: '1y'  },
-  { id: '3y',  label: '3y'  },
-  { id: '5y',  label: '5y'  },
-  { id: '10y', label: '10y' },
-];
-const PERIOD_IDS = PERIOD_COLS.map(pc => pc.id);
 
 function updateSlColStyle() {
   const el = document.getElementById('sl-col-style');
@@ -98,13 +84,9 @@ function renderStockList() {
     return state.listSortDir === 'desc' ? (vb > va ? 1 : -1) : (va > vb ? 1 : -1);
   });
 
-  function th(label, col, align) {
-    const active   = state.listSortCol === col;
-    const sortCls  = active ? (state.listSortDir === 'desc' ? 'sort-desc' : 'sort-asc') : '';
-    const alignCls = align === 'center' ? 'sl-th-center' : '';
-    const cls = [sortCls, alignCls].filter(Boolean).join(' ');
-    return `<th class="${cls}" data-col="${col}" onclick="slSort('${col}')">${label}</th>`;
-  }
+  // makeTh のカリー版（sortFn・ソート状態をクロージャでキャプチャ）
+  const th = (label, col, align) =>
+    makeTh(label, col, align, state.listSortCol, state.listSortDir, 'slSort');
 
   // 表内のみ：マイナスだけ赤、プラスは無色
   const slSgn = v => (v != null && v < 0) ? 'neg' : '';
@@ -123,13 +105,9 @@ function renderStockList() {
     const barPct = p.value && maxValue > 0 ? (p.value / maxValue) : 0;
 
     const periodCells = PERIOD_COLS.map(pc => {
-      const pct = getPctForPeriod(p, pc.id);
-      const str = pct != null ? fmtPctInt(pct) : '-';
-      if (pct == null) return `<td data-col="${pc.id}" class="sl-pct-cell">-</td>`;
+      const pct   = getPctForPeriod(p, pc.id);
       const scale = PERIOD_MAP[pc.id]?.scale ?? 25;
-      const bg  = getColor(pct, 'change', scale);
-      const fg  = getCellTextColor(bg);
-      return `<td data-col="${pc.id}" class="sl-pct-cell" style="background:${bg};color:${fg}">${str}</td>`;
+      return makePctCell(pct, scale, pc.id);
     }).join('');
 
     // 列順：ティッカー(+銘柄名) / 市場 / 時価評価額 / 保有数 / 取得単価 / 現在値 / 騰落率×10 / 含み損益 / 損益率

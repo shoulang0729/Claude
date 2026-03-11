@@ -1,9 +1,9 @@
 // ══════════════════════════════════════════════════════════════
 // watchlist.js  ―  ウォッチリスト（タブ3）
 //
-// 依存: state.js (state), utils.js (getColor, getCellTextColor,
-//        getHistoricalChangePct, fmtPrice, fmtPctInt),
-//       positions.js (PERIOD_COLS, PERIOD_MAP),
+// 依存: state.js (state), utils.js (makeTh, makePctCell, getColor,
+//        getCellTextColor, getHistoricalChangePct, fmtPrice, fmtPctInt),
+//       positions.js (PERIOD_COLS, PERIOD_IDS, PERIOD_MAP),
 //       data.js (fetchViaProxy, fetchLivePrice, fetchSymbolHistory)
 // ══════════════════════════════════════════════════════════════
 
@@ -247,9 +247,6 @@ async function fetchWatchlistData() {
 // SORT
 // ══════════════════════════════════════════════
 
-if (!state.wlSortCol) state.wlSortCol = '1d';
-if (!state.wlSortDir) state.wlSortDir = 'desc';
-
 function wlSort(col) {
   if (state.wlSortCol === col) {
     state.wlSortDir = state.wlSortDir === 'desc' ? 'asc' : 'desc';
@@ -263,6 +260,12 @@ function wlSort(col) {
 // ══════════════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════════════
+
+/** ウォッチリスト用の期間騰落率取得（1d はライブ価格キャッシュから） */
+function wlGetPct(item, periodId) {
+  if (periodId === '1d') return state.watchlistPrices[item.symbol]?.dayPct ?? null;
+  return getHistoricalChangePct(item.symbol, periodId);
+}
 
 function renderWatchlist() {
   const wrap = document.getElementById('watchlist-table-wrap');
@@ -289,54 +292,34 @@ function renderWatchlist() {
     if (col === 'price') {
       va = state.watchlistPrices[a.symbol]?.price ?? -Infinity;
       vb = state.watchlistPrices[b.symbol]?.price ?? -Infinity;
-    } else if (col === '1d') {
-      va = state.watchlistPrices[a.symbol]?.dayPct ?? -Infinity;
-      vb = state.watchlistPrices[b.symbol]?.dayPct ?? -Infinity;
     } else {
-      va = getHistoricalChangePct(a.symbol, col) ?? -Infinity;
-      vb = getHistoricalChangePct(b.symbol, col) ?? -Infinity;
+      // 1d + 全履歴期間 → wlGetPct で統一
+      va = wlGetPct(a, col) ?? -Infinity;
+      vb = wlGetPct(b, col) ?? -Infinity;
     }
     return dir * (va > vb ? 1 : va < vb ? -1 : 0);
   });
 
-  // ── ヘッダー生成 ──
-  function th(label, col, align) {
-    const active   = state.wlSortCol === col;
-    const sortCls  = active ? (state.wlSortDir === 'desc' ? 'sort-desc' : 'sort-asc') : '';
-    const alignCls = align === 'center' ? 'sl-th-center' : '';
-    const cls      = [sortCls, alignCls].filter(Boolean).join(' ');
-    const click    = col ? `onclick="wlSort('${col}')"` : '';
-    return `<th class="${cls}" ${click}>${label}</th>`;
-  }
+  // makeTh のカリー版（sortFn・ソート状態をクロージャでキャプチャ）
+  const th = (label, col, align) =>
+    makeTh(label, col, align, state.wlSortCol, state.wlSortDir, 'wlSort');
 
   // ── 行生成 ──
   const rows = sorted.map(item => {
     const live     = state.watchlistPrices[item.symbol];
     const price    = live?.price;
-    const dayPct   = live?.dayPct;
     const priceStr = price != null ? fmtPrice(price, item.cur) : '–';
 
-    // 1d セル
-    const dayBg  = dayPct != null ? getColor(dayPct, 'change', PERIOD_MAP['1d'].scale) : null;
-    const dayFg  = dayBg  ? getCellTextColor(dayBg) : null;
-    const dayStr = dayPct != null ? fmtPctInt(dayPct) : '–';
-    const dayCellStyle = dayBg ? `style="background:${dayBg};color:${dayFg}"` : '';
-
-    // 1w〜10y セル
-    const histCells = PERIOD_COLS.filter(pc => pc.id !== '1d').map(pc => {
-      const pct = getHistoricalChangePct(item.symbol, pc.id);
-      if (pct == null) return `<td class="sl-pct-cell">–</td>`;
-      const bg = getColor(pct, 'change', PERIOD_MAP[pc.id].scale);
-      const fg = getCellTextColor(bg);
-      return `<td class="sl-pct-cell" style="background:${bg};color:${fg}">${fmtPctInt(pct)}</td>`;
-    }).join('');
+    // 全期間セル（1d〜10y）を wlGetPct + makePctCell で統一
+    const periodCells = PERIOD_COLS.map(pc =>
+      makePctCell(wlGetPct(item, pc.id), PERIOD_MAP[pc.id].scale)
+    ).join('');
 
     return `<tr>
       <td class="sl-sym">${item.symbol}<span class="sl-inline-name">${item.name}</span></td>
       <td class="wl-market-cell"><span class="wl-type-badge wl-badge-${item.type}">${item.exchange}</span></td>
       <td class="wl-price-cell">${priceStr}</td>
-      <td class="sl-pct-cell" ${dayCellStyle}>${dayStr}</td>
-      ${histCells}
+      ${periodCells}
       <td class="wl-del-cell">
         <button class="wl-del-btn" onclick="removeFromWatchlist('${item.symbol}')" title="ウォッチリストから削除">×</button>
       </td>

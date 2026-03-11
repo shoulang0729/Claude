@@ -74,4 +74,6 @@ const state = {
   // ウォッチリスト
   watchlist:        JSON.parse(localStorage.getItem('hm-watchlist') || '[]'),
   watchlistPrices:  {},         // symbol → { price, dayPct }
+  wlSortCol:        '1d',       // ウォッチリストのデフォルトソート列
+  wlSortDir:        'desc',
 };

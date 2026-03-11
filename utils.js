@@ -162,3 +162,40 @@ function getCellTextColorSub(hexColor) {
   if (!c) return cssVar('--text3');
   return _lum(c) > 0.35 ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.82)';
 }
+
+// ══════════════════════════════════════════════
+// TABLE HELPERS  ―  stock-list / watchlist 共用
+// ══════════════════════════════════════════════
+
+/**
+ * ソートヘッダーセル（<th>）を生成する
+ * @param {string} label        - ヘッダー表示文字列（HTML可）
+ * @param {string} col          - ソートキー（空文字ならクリック不可）
+ * @param {string|null} align   - 'center' でセンター揃えクラスを付ける
+ * @param {string} activeSortCol - 現在のソート列
+ * @param {string} sortDir      - 'asc' | 'desc'
+ * @param {string} sortFnName   - クリック時に呼ぶ関数名（例: 'slSort'）
+ */
+function makeTh(label, col, align, activeSortCol, sortDir, sortFnName) {
+  const active   = col && activeSortCol === col;
+  const sortCls  = active ? (sortDir === 'desc' ? 'sort-desc' : 'sort-asc') : '';
+  const alignCls = align === 'center' ? 'sl-th-center' : '';
+  const cls      = [sortCls, alignCls].filter(Boolean).join(' ');
+  const dataCol  = col ? `data-col="${col}"` : '';
+  const click    = (col && sortFnName) ? `onclick="${sortFnName}('${col}')"` : '';
+  return `<th class="${cls}" ${dataCol} ${click}>${label}</th>`;
+}
+
+/**
+ * 騰落率カラーセル（<td>）を生成する
+ * @param {number|null} pct   - 騰落率 (%)
+ * @param {number} scale      - 色スケール（PERIOD_MAP[id].scale）
+ * @param {string} [dataCol]  - data-col 属性値（省略可）
+ */
+function makePctCell(pct, scale, dataCol = '') {
+  const dataAttr = dataCol ? `data-col="${dataCol}" ` : '';
+  if (pct == null) return `<td ${dataAttr}class="sl-pct-cell">–</td>`;
+  const bg = getColor(pct, 'change', scale);
+  const fg = getCellTextColor(bg);
+  return `<td ${dataAttr}class="sl-pct-cell" style="background:${bg};color:${fg}">${fmtPctInt(pct)}</td>`;
+}

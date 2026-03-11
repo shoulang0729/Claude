@@ -173,4 +173,7 @@ const PERIODS = [
   { id: '5y',  label: '5y',  statsLabel: '5y',  days: 1825, range: '5y',  scale: 130 },
   { id: '10y', label: '10y', statsLabel: '10y', days: 3650, range: '10y', scale: 200 },
 ];
-const PERIOD_MAP = Object.fromEntries(PERIODS.map(p => [p.id, p]));
+const PERIOD_MAP  = Object.fromEntries(PERIODS.map(p => [p.id, p]));
+// テーブルヘッダー・セル描画用（PERIODS から自動生成）
+const PERIOD_COLS = PERIODS.map(p => ({ id: p.id, label: p.label }));
+const PERIOD_IDS  = PERIOD_COLS.map(pc => pc.id);
