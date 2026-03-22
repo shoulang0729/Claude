@@ -6,6 +6,56 @@
 // ══════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════
+// FINNHUB CONFIG
+// ══════════════════════════════════════════════
+const FINNHUB_KEY = 'd6vk211r01qiiutc5h60d6vk211r01qiiutc5h6g';
+
+/**
+ * Yahoo Finance シンボルを Finnhub シンボルに変換
+ * 例: '9983.T' → 'TYO:9983' / 'AAPL' → 'AAPL'
+ */
+function toFinnhubSymbol(ySymbol) {
+  if (!ySymbol) return null;
+  if (ySymbol.endsWith('.T')) return 'TYO:' + ySymbol.slice(0, -2);
+  return ySymbol;
+}
+
+/**
+ * Finnhub Quote API でライブ価格・当日騰落率を取得
+ * @returns {Promise<{price, dayPct}|null>}
+ */
+async function fetchFinnhubQuote(fSymbol) {
+  const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(fSymbol)}&token=${FINNHUB_KEY}`;
+  try {
+    const res = await fetchWithTimeout(url, 7000);
+    if (!res.ok) return null;
+    const d = await res.json();
+    // c=0 はデータなし（週末・未収録銘柄）
+    if (!d || !d.c) return null;
+    return { price: d.c, dayPct: d.dp ?? null };
+  } catch { return null; }
+}
+
+/**
+ * Finnhub Candles API で日足履歴データを取得
+ * @param {string} fSymbol - Finnhub シンボル
+ * @param {number} fromTs  - 開始 UNIX タイムスタンプ（秒）
+ * @param {number} toTs    - 終了 UNIX タイムスタンプ（秒）
+ * @returns {Promise<Array<{date, close}>|null>}
+ */
+async function fetchFinnhubCandles(fSymbol, fromTs, toTs) {
+  const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(fSymbol)}&resolution=D&from=${fromTs}&to=${toTs}&token=${FINNHUB_KEY}`;
+  try {
+    const res = await fetchWithTimeout(url, 10000);
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (d?.s !== 'ok' || !d.t?.length) return null;
+    return d.t.map((ts, i) => ({ date: new Date(ts * 1000), close: d.c[i] }))
+              .filter(p => p.close != null && isFinite(p.close));
+  } catch { return null; }
+}
+
+// ══════════════════════════════════════════════
 // FETCH HELPER
 // ══════════════════════════════════════════════
 /**
@@ -117,6 +167,21 @@ async function fetchAllHistorical(neededRange = '1y') {
 async function fetchSymbolHistory(symbol, range = '1y') {
   if (!state.historicalCache[range]) state.historicalCache[range] = {};
   if (state.historicalCache[range][symbol]) return; // already cached
+
+  // ── Finnhub を優先試行 ──
+  const fSymbol = toFinnhubSymbol(symbol);
+  if (fSymbol) {
+    const rangeDays = { '1y': 365, '5y': 1825, '10y': 3650 };
+    const now  = Math.floor(Date.now() / 1000);
+    const from = now - (rangeDays[range] ?? 365) * 86400;
+    const candles = await fetchFinnhubCandles(fSymbol, from, now);
+    if (candles?.length) {
+      state.historicalCache[range][symbol] = candles;
+      return;
+    }
+  }
+
+  // ── フォールバック: Yahoo Finance ──
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
   const data = await fetchViaProxy(url);
   if (!data) return;
@@ -134,20 +199,27 @@ async function fetchSymbolHistory(symbol, range = '1y') {
 // ══════════════════════════════════════════════
 
 /**
- * v8/finance/chart で1銘柄の現在値・前日比を取得する
- * （v7/finance/quote より認証が不要で安定している同エンドポイントを再利用）
+ * 1銘柄のライブ価格・当日騰落率を取得する
+ * Finnhub を優先し、失敗時は Yahoo Finance にフォールバック
  */
 async function fetchLivePrice(symbol) {
+  // ── Finnhub を優先試行 ──
+  const fSymbol = toFinnhubSymbol(symbol);
+  if (fSymbol) {
+    const fh = await fetchFinnhubQuote(fSymbol);
+    if (fh) return fh;
+  }
+
+  // ── フォールバック: Yahoo Finance ──
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=2d&_=${Date.now()}`;
   const data = await fetchViaProxy(url);
   const result = data?.chart?.result?.[0];
   if (!result) return null;
 
-  const price     = result.meta?.regularMarketPrice ?? null;
+  const price = result.meta?.regularMarketPrice ?? null;
   if (price == null) return null;
 
   // Yahoo Finance が事前計算した騰落率を最優先（サイト表示値と一致する）
-  // フォールバック: prevClose から自前計算
   const preCalcPct = result.meta?.regularMarketChangePercent ?? null;
   const prevClose  = result.meta?.regularMarketPreviousClose
                   ?? result.meta?.chartPreviousClose
