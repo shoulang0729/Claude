@@ -6,6 +6,50 @@
 // ══════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════
+// FETCH HELPER
+// ══════════════════════════════════════════════
+/**
+ * タイムアウト付き fetch ラッパー
+ * @param {string} url
+ * @param {number} [ms=7000] タイムアウトミリ秒
+ */
+function fetchWithTimeout(url, ms = 7000, opts = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal, ...opts }).finally(() => clearTimeout(timer));
+}
+
+/** 指定ミリ秒待機する */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/**
+ * Yahoo Finance API を CORS プロキシ経由で取得する（4段フォールバック）
+ * query1 直接 → query2 直接 → corsproxy.io → allorigins の順に試行
+ * @param {string} url - Yahoo Finance API URL（query1.finance.yahoo.com）
+ * @param {number} [timeoutMs=7000] 1試行あたりのタイムアウトミリ秒
+ * @returns {Promise<Object|null>} パースされた JSON、失敗時は null
+ */
+async function fetchViaProxy(url, timeoutMs = 7000) {
+  const q2url = url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com');
+  const attempts = [
+    { url,                                                                      opts: { credentials: 'include' } },
+    { url: q2url,                                                               opts: { credentials: 'include' } },
+    { url: `https://corsproxy.io/?${encodeURIComponent(url)}`,                 opts: {} },
+    { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,    opts: {} },
+  ];
+  for (const { url: u, opts } of attempts) {
+    try {
+      const res = await fetchWithTimeout(u, timeoutMs, opts);
+      if (!res.ok) continue;
+      const raw = await res.json();
+      // allorigins wraps content in { contents: "..." }
+      return raw?.contents ? JSON.parse(raw.contents) : raw;
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════
 // FINNHUB CONFIG
 // ══════════════════════════════════════════════
 const FINNHUB_KEY = 'd6vk211r01qiiutc5h60d6vk211r01qiiutc5h6g';
@@ -53,50 +97,6 @@ async function fetchFinnhubCandles(fSymbol, fromTs, toTs) {
     return d.t.map((ts, i) => ({ date: new Date(ts * 1000), close: d.c[i] }))
               .filter(p => p.close != null && isFinite(p.close));
   } catch { return null; }
-}
-
-// ══════════════════════════════════════════════
-// FETCH HELPER
-// ══════════════════════════════════════════════
-/**
- * タイムアウト付き fetch ラッパー
- * @param {string} url
- * @param {number} [ms=7000] タイムアウトミリ秒
- */
-function fetchWithTimeout(url, ms = 7000, opts = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { signal: ctrl.signal, ...opts }).finally(() => clearTimeout(timer));
-}
-
-/** 指定ミリ秒待機する */
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-/**
- * Yahoo Finance API を CORS プロキシ経由で取得する（4段フォールバック）
- * query1 直接 → query2 直接 → corsproxy.io → allorigins の順に試行
- * @param {string} url - Yahoo Finance API URL（query1.finance.yahoo.com）
- * @param {number} [timeoutMs=7000] 1試行あたりのタイムアウトミリ秒
- * @returns {Promise<Object|null>} パースされた JSON、失敗時は null
- */
-async function fetchViaProxy(url, timeoutMs = 7000) {
-  const q2url = url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com');
-  const attempts = [
-    { url,                                                                      opts: { credentials: 'include' } },
-    { url: q2url,                                                               opts: { credentials: 'include' } },
-    { url: `https://corsproxy.io/?${encodeURIComponent(url)}`,                 opts: {} },
-    { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,    opts: {} },
-  ];
-  for (const { url: u, opts } of attempts) {
-    try {
-      const res = await fetchWithTimeout(u, timeoutMs, opts);
-      if (!res.ok) continue;
-      const raw = await res.json();
-      // allorigins wraps content in { contents: "..." }
-      return raw?.contents ? JSON.parse(raw.contents) : raw;
-    } catch { /* try next */ }
-  }
-  return null;
 }
 
 /**
