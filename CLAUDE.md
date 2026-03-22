@@ -1,7 +1,7 @@
 # Portfolio Heatmap — Claude Code 引き継ぎ情報
 
 ## プロジェクト概要
-Yahoo Finance API を使ったポートフォリオ可視化 Web アプリ。
+Finnhub API（優先）+ Yahoo Finance API（フォールバック）を使ったポートフォリオ可視化 Web アプリ。
 ヒートマップ・銘柄リスト・ウォッチリストの3タブ構成。
 
 - **本番 URL**: https://shoulang0729.github.io/portfolio/
@@ -9,14 +9,14 @@ Yahoo Finance API を使ったポートフォリオ可視化 Web アプリ。
 
 ---
 
-## ファイル構成（8モジュール）
+## ファイル構成（9モジュール）
 
 | ファイル | 役割 |
 |---|---|
 | `positions.js` | 保有銘柄データ・PERIODS 定義・PERIOD_COLS/IDS |
 | `state.js` | 定数 (C)・アプリ状態 (state)・CHART_RANGES |
 | `utils.js` | 共通ユーティリティ（色計算・フォーマット・makeTh/makePctCell） |
-| `data.js` | Yahoo Finance API 通信・価格取得・履歴キャッシュ |
+| `data.js` | Finnhub/Yahoo Finance API 通信・価格取得・履歴キャッシュ |
 | `heatmap.js` | D3.js ヒートマップ描画 |
 | `chart.js` | D3.js チャート描画 |
 | `stock-list.js` | 銘柄リストタブ（スクロール表・ソート） |
@@ -34,8 +34,35 @@ bash deploy.sh
 # 3. VM はネットワーク制限で push できないため GitHub Desktop で Push origin
 ```
 
-**バージョン命名規則**: `?v=YYYYMMDDX`（例: `20260311n`）
+**バージョン命名規則**: `?v=YYYYMMDDX`（例: `20260322b`）
 英字は同日複数リリース時に a, b, c… と順に振る。
+
+---
+
+## データソース設計
+
+### Finnhub（優先）
+- APIキー: `FINNHUB_KEY`（data.js に定数定義）
+- シンボル変換: `toFinnhubSymbol(ySymbol)` — `9983.T` → `TYO:9983`、US株はそのまま
+- ライブ価格: `fetchFinnhubQuote(fSymbol)` — `dp`（日次騰落率）・`c`（現在値）を返す
+- 履歴データ: `fetchFinnhubCandles(fSymbol, fromTs, toTs)` — 日足 OHLCV
+- 無料枠: 60リクエスト/分
+
+### Yahoo Finance（フォールバック）
+- Finnhub が失敗した場合に自動切り替え（投資信託プロキシなど未収録銘柄向け）
+- 4段フォールバック: query1直接 → query2直接 → corsproxy.io → allorigins
+- `fetchViaProxy(url)` 経由で取得
+
+### データ取得フロー
+```
+fetchLivePrice(ySymbol)
+  → fetchFinnhubQuote(TYO:XXXX or AAPL)
+  → [失敗時] fetchViaProxy(Yahoo Finance chart API)
+
+fetchSymbolHistory(ySymbol, range)
+  → fetchFinnhubCandles(TYO:XXXX, fromTs, toTs)
+  → [失敗時] fetchViaProxy(Yahoo Finance chart API, range=1y/5y/10y)
+```
 
 ---
 
@@ -63,10 +90,12 @@ bash deploy.sh
 - `localStorage` の `hm-watchlist` キーに JSON 保存
 - `wlGetPct(item, periodId)` で 1d は livePrice キャッシュ、他は historicalCache から取得
 - 市場列バッジは `<span class="wl-type-badge">` のみ（タイプ別クラスなし）
+- 検索は Yahoo Finance の chart/quoteSummary API（Finnhub の Search API は未使用）
 
 ### CSS テーマ
 - CSS 変数 `--bg`, `--border`, `--text`, `--text2` などでダーク/ライト切り替え
 - `.wl-type-badge` ：`background: var(--border); color: var(--text2)` のピル形式
+- `#watchlist-table-wrap` に `overflow-x: auto` を設定（スマホ横スクロール対応）
 
 ---
 
@@ -74,9 +103,12 @@ bash deploy.sh
 
 | バージョン | 内容 |
 |---|---|
-| 20260311n | 市場ソート comparator バグ修正（localeCompare使用）、ウォッチリスト市場バッジを銘柄リストと統一、.wl-type-badge に background/color 追加 |
-| 20260311m | リファクタリング：makeTh/makePctCell を utils.js に共通化、PERIOD_COLS/IDS を positions.js へ移動、wlSortCol/Dir を state.js へ移動 |
-| 20260311l | 市場列・市場ソートを銘柄リスト/ウォッチリストに追加、デフォルトソートを 1d 降順に変更 |
+| 20260322b | ウォッチリストのスマホ表示修正（overflow-x: auto 追加・プレースホルダー短縮） |
+| 20260322a | Finnhub 実装（Finnhub 優先→Yahoo フォールバック）、ポートフォリオ更新（SHLD/SHV/XLE 追加、EPI/EPP等削除、投資信託をオルカンのみに） |
+| 20260311o | Yahoo Finance 安定性改善（query2追加・バッチ取得・リトライ） |
+| 20260311n | 市場ソート comparator バグ修正、ウォッチリスト市場バッジ統一 |
+| 20260311m | リファクタリング：makeTh/makePctCell 共通化、PERIOD_COLS/IDS 移動 |
+| 20260311l | 市場列・市場ソートを銘柄リスト/ウォッチリストに追加 |
 | 20260311k | ウォッチリストタブ実装（watchlist.js 新規作成） |
 
 ---
@@ -91,6 +123,7 @@ bash deploy.sh
 2. `slRenderRows()` のテーブルヘッダーに `th('ラベル', 'col-id', 'center')` を追加
 3. 行の `<td data-col="col-id">` を追加
 
-### API が返す形式を変更する
-`data.js` の `fetchLivePrices()` / `fetchHistoricalData()` を確認する。
-Yahoo Finance の crumb は `state.yahooCrumb` にキャッシュされ、期限切れで再取得される。
+### Finnhub が取れない銘柄への対処
+- `fetchFinnhubQuote` が null を返すと自動で Yahoo Finance にフォールバック
+- 東証シンボルで取れない場合は `toFinnhubSymbol` の変換ロジックを確認
+- 投資信託は `isProxy: true` + `ySymbol` に代替インデックスを指定して対処
