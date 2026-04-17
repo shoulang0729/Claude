@@ -168,20 +168,9 @@ async function fetchSymbolHistory(symbol, range = '1y') {
   if (!state.historicalCache[range]) state.historicalCache[range] = {};
   if (state.historicalCache[range][symbol]) return; // already cached
 
-  // ── Finnhub を優先試行 ──
-  const fSymbol = toFinnhubSymbol(symbol);
-  if (fSymbol) {
-    const rangeDays = { '1y': 365, '5y': 1825, '10y': 3650 };
-    const now  = Math.floor(Date.now() / 1000);
-    const from = now - (rangeDays[range] ?? 365) * 86400;
-    const candles = await fetchFinnhubCandles(fSymbol, from, now);
-    if (candles?.length) {
-      state.historicalCache[range][symbol] = candles;
-      return;
-    }
-  }
-
-  // ── フォールバック: Yahoo Finance ──
+  // ── Yahoo Finance のみ使用（スプリット調整済みデータのため）──
+  // Finnhub はスプリット未調整データを返す場合があり、
+  // 株式分割後の銘柄で -100% 等の異常表示が発生するため除外
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
   const data = await fetchViaProxy(url);
   if (!data) return;
