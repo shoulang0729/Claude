@@ -177,7 +177,10 @@ async function fetchSymbolHistory(symbol, range = '1y') {
   const result = data?.chart?.result?.[0];
   if (!result) return;
   const timestamps = result.timestamp || [];
-  const closes = result.indicators?.quote?.[0]?.close || [];
+  // adjclose はスプリット・配当調整済み終値。未収録の場合は通常終値にフォールバック
+  const adjCloses = result.indicators?.adjclose?.[0]?.adjclose || [];
+  const rawCloses = result.indicators?.quote?.[0]?.close || [];
+  const closes = adjCloses.length ? adjCloses : rawCloses;
   state.historicalCache[range][symbol] = timestamps
     .map((ts, i) => ({ date: new Date(ts * 1000), close: closes[i] }))
     .filter(p => p.close != null && isFinite(p.close));
@@ -271,7 +274,8 @@ async function refreshPrices() {
     if (!live) return;
 
     // Sanity check: live価格が記録値と10倍以上乖離する場合は Finnhub 誤データとみなす
-    if (p.price > 0 && (live.price / p.price < 0.1 || live.price / p.price > 10)) {
+    // isProxy 銘柄はスキップ（p.price は基準価額、live.price はプロキシ価格で単位が異なる）
+    if (!p.isProxy && p.price > 0 && (live.price / p.price < 0.1 || live.price / p.price > 10)) {
       console.warn(`[refreshPrices] 異常価格スキップ: ${p.symbol} live=${live.price} stored=${p.price}`);
       return;
     }
