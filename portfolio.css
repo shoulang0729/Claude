@@ -1002,3 +1002,321 @@ body {
   font-size: 12px; color: var(--text2);
   margin-top: -10px; margin-bottom: 20px;
 }
+
+/* ══════════════════════════════════════════════
+   AI 相談タブ (ai-tab.js)
+   ══════════════════════════════════════════════ */
+
+/* パネル全体の余白 */
+.ai-panel-inner {
+  padding: 16px 16px 40px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── ヘッダー ── */
+.ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.ai-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ai-settings-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text2);
+  padding: 5px 8px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ai-settings-btn:hover { background: var(--surface3); border-color: var(--border); color: var(--text); }
+
+/* ── 質問入力 ── */
+.ai-input-wrap {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  transition: border-color 0.15s;
+}
+.ai-input-wrap:focus-within {
+  border-color: var(--border);
+}
+.ai-question {
+  width: 100%;
+  padding: 14px 16px 10px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  box-sizing: border-box;
+  line-height: 1.6;
+  min-height: 78px;
+}
+.ai-question::placeholder { color: var(--text2); }
+.ai-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border2);
+}
+.ai-portfolio-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ai-portfolio-toggle input[type="checkbox"] {
+  accent-color: var(--text);
+  width: 14px; height: 14px;
+  cursor: pointer;
+}
+.ai-send-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ai-send-btn:hover   { opacity: 0.85; }
+.ai-send-btn:active  { transform: scale(0.96); }
+.ai-send-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+
+/* ── カードグリッド ── */
+.ai-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (max-width: 520px) {
+  .ai-grid { grid-template-columns: 1fr; }
+}
+
+.ai-card {
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface2);
+}
+.ai-card-claude {
+  /* Claude はフル幅 */
+}
+.ai-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+}
+.ai-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+.ai-card-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  flex: 1;
+}
+.ai-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.ai-card-body {
+  padding: 12px 14px 14px;
+  min-height: 72px;
+}
+
+/* ── カード内の状態表示 ── */
+.ai-idle {
+  color: var(--text2);
+  font-size: 13px;
+}
+.ai-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text2);
+  font-size: 13px;
+}
+.ai-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--text2);
+  border-radius: 50%;
+  animation: ai-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
+.ai-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.65;
+  word-break: break-word;
+}
+.ai-error {
+  font-size: 12px;
+  color: #e05252;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.ai-no-key {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.7;
+  text-align: center;
+  padding: 6px 0;
+}
+.ai-set-key-btn {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 14px;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ai-set-key-btn:hover { background: var(--border2); }
+
+/* ── API キー設定オーバーレイ ── */
+#ai-settings-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.48);
+  z-index: 99997;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  backdrop-filter: blur(4px);
+}
+.ai-settings-card {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 24px 28px 28px;
+  width: min(400px, 92vw);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+}
+.ai-settings-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+.ai-settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.ai-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-settings-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+.ai-settings-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ai-settings-model {
+  font-size: 10px;
+  color: var(--text2);
+}
+.ai-settings-input {
+  flex: 1;
+  padding: 7px 10px;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ai-settings-input:focus { border-color: var(--border); }
+.ai-settings-input::placeholder { color: var(--text2); }
+.ai-settings-actions {
+  display: flex;
+  gap: 10px;
+}
+.ai-save-btn {
+  flex: 1;
+  padding: 9px;
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ai-save-btn:hover { opacity: 0.85; }
+.ai-clear-btn {
+  padding: 9px 14px;
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  color: var(--text2);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.ai-clear-btn:hover { background: var(--surface3); color: var(--text); }
+.ai-settings-msg {
+  margin-top: 12px;
+  font-size: 13px;
+  min-height: 20px;
+}
+.ai-settings-msg.success { color: #3cb371; }
+.ai-settings-msg.error   { color: #e05252; }

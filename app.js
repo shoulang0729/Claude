@@ -253,8 +253,10 @@ function init() {
   // 初期タブ状態を適用（ヒートマップのみ表示、他は非表示）
   const panelList      = document.getElementById('panel-list');
   const panelWatchlist = document.getElementById('panel-watchlist');
+  const panelAi        = document.getElementById('panel-ai');
   if (panelList)      panelList.hidden      = true;
   if (panelWatchlist) panelWatchlist.hidden = true;
+  if (panelAi)        panelAi.hidden        = true;
 
   renderStats();
 
@@ -307,16 +309,18 @@ function updateListHeight() {
 
 // ── タブ切替 ──
 function switchTab(name) {
-  // 'heatmap' | 'list' | 'watchlist'
+  // 'heatmap' | 'list' | 'watchlist' | 'ai'
   if (state.activeTab === name) return;
   state.activeTab = name;
 
   const panelHeatmap   = document.getElementById('panel-heatmap');
   const panelList      = document.getElementById('panel-list');
   const panelWatchlist = document.getElementById('panel-watchlist');
+  const panelAi        = document.getElementById('panel-ai');
   if (panelHeatmap)   panelHeatmap.hidden   = (name !== 'heatmap');
   if (panelList)      panelList.hidden      = (name !== 'list');
   if (panelWatchlist) panelWatchlist.hidden = (name !== 'watchlist');
+  if (panelAi)        panelAi.hidden        = (name !== 'ai');
 
   // タブボタンの active 状態を更新
   document.querySelectorAll('.tab-btn[data-tab]').forEach(b =>
@@ -335,6 +339,11 @@ function switchTab(name) {
   if (name === 'watchlist') {
     renderWatchlist();
     fetchWatchlistData();
+  }
+
+  // AI 相談タブに切り替えたとき初期レンダリング
+  if (name === 'ai') {
+    if (typeof renderAiTab === 'function') renderAiTab();
   }
 }
 
