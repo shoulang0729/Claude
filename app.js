@@ -210,6 +210,8 @@ function _setupMobileLayout() {
   refreshTop.className = 'mobile-refresh-top';
   if (refreshSwitch) refreshTop.appendChild(refreshSwitch);
   if (themeBtn)      refreshTop.appendChild(themeBtn);
+  const pinChangeBtn = document.getElementById('pin-change-btn');
+  if (pinChangeBtn)  refreshTop.appendChild(pinChangeBtn);
   const csvInput = document.getElementById('csv-import-input');
   const csvBtn   = document.querySelector('.csv-btn');
   if (csvInput) refreshTop.appendChild(csvInput);

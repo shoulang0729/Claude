@@ -21,7 +21,7 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- スタイルシート -->
-<link rel="stylesheet" href="portfolio.css?v=20260417e">
+<link rel="stylesheet" href="portfolio.css?v=20260417f">
 <!-- 銘柄リスト列表示制御（JS が動的に書き込む） -->
 <style id="sl-col-style"></style>
 <!-- ★ モバイルレイアウト CSS フォールバック
@@ -69,6 +69,13 @@
     <span class="countdown" id="countdown"></span>
     <div class="divider"></div>
     <button class="theme-btn" id="theme-btn" onclick="cycleTheme()" title="ライト/ダーク/自動">☀</button>
+    <button class="theme-btn" id="pin-change-btn" onclick="openPinChange()" title="PINを変更" style="display:none">
+      <svg width="13" height="16" viewBox="0 0 13 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="7" width="11" height="9" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <path d="M3.5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <circle cx="6.5" cy="11.5" r="1.3" fill="currentColor"/>
+      </svg>
+    </button>
     <!-- CSVインポート（休止中 / 削除要否は後日確認） -->
     <!-- <input type="file" id="csv-import-input" accept=".csv" multiple style="display:none" onchange="handleCsvImport(event)">
     <button class="csv-btn" onclick="document.getElementById('csv-import-input').click()" title="マネックス証券CSVを読み込む（国内株・米国株・投資信託）">CSV</button> -->
@@ -202,17 +209,17 @@
 
 
 <!-- ★ 保有データ（銘柄の追加・変更はこのファイルのみ編集すれば OK） -->
-<script src="auth.js?v=20260417e"></script>
-<script src="positions.js?v=20260417e"></script>
+<script src="auth.js?v=20260417f"></script>
+<script src="positions.js?v=20260417f"></script>
 <!-- アプリロジック（分割ファイル） -->
-<script src="state.js?v=20260417e"></script>
-<script src="utils.js?v=20260417e"></script>
-<script src="data.js?v=20260417e"></script>
-<script src="heatmap.js?v=20260417e"></script>
-<script src="chart.js?v=20260417e"></script>
-<script src="stock-list.js?v=20260417e"></script>
-<script src="watchlist.js?v=20260417e"></script>
-<script src="app.js?v=20260417e"></script>
+<script src="state.js?v=20260417f"></script>
+<script src="utils.js?v=20260417f"></script>
+<script src="data.js?v=20260417f"></script>
+<script src="heatmap.js?v=20260417f"></script>
+<script src="chart.js?v=20260417f"></script>
+<script src="stock-list.js?v=20260417f"></script>
+<script src="watchlist.js?v=20260417f"></script>
+<script src="app.js?v=20260417f"></script>
 
 <!-- フォールバック JS：旧版 portfolio.js でもヒートマップが描画されるよう保証 -->
 <script>
