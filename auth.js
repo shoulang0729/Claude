@@ -428,15 +428,20 @@ function _showChangePinButton() {
 // ══════════════════════════════════════════════
 (function initAuth() {
   if (isAuthenticated()) {
-    // 既に認証済み → 鍵を非同期で復元（完了後に変更ボタンを表示）
-    _restoreEncKey().then(() => {
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', _showChangePinButton);
-      } else {
-        _showChangePinButton();
-      }
-    });
-    return;
+    // enc鍵がsessionStorageにある場合のみスキップ。なければPINを再入力させる
+    if (sessionStorage.getItem(_AUTH_ENC_SS)) {
+      _restoreEncKey().then(() => {
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', _showChangePinButton);
+        } else {
+          _showChangePinButton();
+        }
+      });
+      return;
+    }
+    // auth tokenはあるがenc鍵がない（古いセッション or 初回暗号化機能導入）
+    // → 一度クリアしてPINを再入力させる
+    sessionStorage.removeItem(AUTH_SESSION_KEY);
   }
 
   document.body.style.overflow = 'hidden';
